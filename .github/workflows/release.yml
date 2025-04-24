@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-and-sign:
+    name: Build and Sign Package
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ['3.12']
+    runs-on: ${{ matrix.os }}
+
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+          pip install -e '.[dev]'
+
+      - name: Build distribution
+        run: python -m build
+
+      - name: Sign distribution with Sigstore
+        uses: sigstore/gh-action-sigstore-python@v2
+        with:
+          inputs: ./dist/*.tar.gz ./dist/*.whl
+          upload-signing-artifacts: true
+
+      - name: Install syft for SBOM generation
+        if: matrix.os == 'ubuntu-latest'
+        uses: anchore/sbom-action/download-syft@v0
+        with:
+          syft-version: 'v0.92.0'
+
+      - name: Generate SBOM
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          chmod +x ./scripts/generate_sbom.sh
+          ./scripts/generate_sbom.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-${{ matrix.os }}
+          path: |
+            dist/*
+            sbom.json
+            .github/attestations/**
+
+  release:
+    name: Create Release
+    needs: build-and-sign
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Get tag name
+        id: tag
+        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/dist/*
+            artifacts/sbom.json
+            artifacts/.github/attestations/**
+          name: AegisEval Lite ${{ steps.tag.outputs.TAG }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+
+  publish:
+    name: Publish to PyPI
+    needs: release
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/aegiseval/
+    permissions:
+      id-token: write  # OIDC for PyPI Trusted Publishing
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Publish to PyPI
+        run: |
+          chmod +x ./scripts/publish.sh
+          ./scripts/publish.sh 

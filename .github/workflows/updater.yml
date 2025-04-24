@@ -1,0 +1,38 @@
+name: Check for Regulation Updates
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Run daily at midnight UTC
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  check-updates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Check for updates
+        id: check
+        run: |
+          result=$(python -c "from aegiseval.updater.job import check_for_updates; print(check_for_updates())")
+          echo "Update available: $result"
+          echo "update_available=$result" >> $GITHUB_OUTPUT
+
+      - name: Report update status
+        run: |
+          if [ "${{ steps.check.outputs.update_available }}" = "True" ]; then
+            echo "Updates are available for EU AI Act regulations!"
+          else
+            echo "Regulations are up to date."
+          fi 

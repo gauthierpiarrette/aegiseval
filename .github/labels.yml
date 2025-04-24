@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# GitHub issue labels
+# Add custom labels here for the repository
+
+- name: "⚖️ mapping-change"
+  description: "Changes EU AI Act compliance mappings"
+  color: "0052CC" 

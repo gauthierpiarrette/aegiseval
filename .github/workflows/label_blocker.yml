@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+
+name: EU AI Act Mapping Change Validator
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+jobs:
+  validate-mapping-changes:
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, '⚖️ mapping-change')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          
+      - name: Check for required file changes
+        id: check-files
+        run: |
+          # Get list of changed files
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
+          
+          # Check if both required files are modified
+          if echo "$CHANGED_FILES" | grep -q "aegiseval/data/eu_ai_act.yaml" && echo "$CHANGED_FILES" | grep -q "docs/compliance_review.md"; then
+            echo "Required files modified - validation passed"
+            exit 0
+          else
+            echo "Error: PRs with '⚖️ mapping-change' label must modify both:"
+            echo "- aegiseval/data/eu_ai_act.yaml"
+            echo "- docs/compliance_review.md"
+            exit 1
+          fi 

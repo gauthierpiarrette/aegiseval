@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ['3.11', '3.12']
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+        pip install pytest-cov pytest-benchmark
+
+    - name: Lint with Ruff
+      run: |
+        ruff check . --output-format=github
+
+    - name: Type check with mypy
+      run: |
+        mypy aegiseval tests
+
+    - name: Test with pytest and coverage
+      env:
+        MIN_COVERAGE_TOTAL: 90
+        MIN_COVERAGE_BRANCH: 80
+        MIN_CLASSIFIER_F1: 0.85
+      run: |
+        pytest --cov=aegiseval --cov-report=term --cov-report=xml --cov-report=html tests/
+        python -c "import xml.etree.ElementTree as ET; \
+                  tree = ET.parse('coverage.xml'); \
+                  root = tree.getroot(); \
+                  coverage = float(root.attrib['line-rate']) * 100; \
+                  branch_coverage = float(root.attrib['branch-rate']) * 100; \
+                  print(f'Coverage: {coverage:.2f}%'); \
+                  print(f'Branch coverage: {branch_coverage:.2f}%'); \
+                  import os; \
+                  min_cov = float(os.environ.get('MIN_COVERAGE_TOTAL', 90)); \
+                  min_branch = float(os.environ.get('MIN_COVERAGE_BRANCH', 80)); \
+                  assert coverage >= min_cov, f'Coverage {coverage:.2f}% is below minimum {min_cov}%'; \
+                  assert branch_coverage >= min_branch, f'Branch coverage {branch_coverage:.2f}% is below minimum {min_branch}%'"
+
+    - name: Run benchmarks
+      run: |
+        pytest --benchmark-only tests/
+
+    - name: Check classifier F1 scores
+      run: |
+        python tests/test_coverage.py
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report-${{ matrix.os }}-py${{ matrix.python-version }}
+        path: htmlcov/
+        retention-days: 7 

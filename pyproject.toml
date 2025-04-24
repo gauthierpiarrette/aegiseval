@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aegiseval"
+version = "0.1.0"
+description = "AegisEval Lite: A zero-infra CLI that safety-tests LLMs and maps failures to EU-AI-Act articles"
+authors = [
+    {name = "AegisEval Team"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+classifiers = [
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "click>=8.0.0",
+    "pydantic>=2.0.0",
+    "PyYAML>=6.0",
+    "jsonschema>=4.0.0",
+    "httpx>=0.25.0",
+    "tenacity>=8.0.0",
+    "requests>=2.28.0",
+    "deepdiff>=6.0.0",
+    "jinja2>=3.1.0",
+    "xhtml2pdf>=0.2.13",
+    "pdfminer.six>=20221105",
+    "asyncio>=3.4.3",
+    "tqdm>=4.65.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-httpx",
+    "ruff",
+    "mypy",
+    "black",
+    "vcrpy>=4.0.0",
+]
+optional-deps = [
+    "transformers>=4.40",
+    "torch>=2.0",
+]
+
+[project.scripts]
+aegiseval = "aegiseval.cli.main:main"
+
+[project.entry-points]
+"aegiseval.adapters" = { ollama = "examples.adapter_ollama_stub:OllamaAdapter" }
+
+[tool.setuptools]
+packages = ["aegiseval"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+strict_optional = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "aegiseval.config.schema"
+disallow_untyped_calls = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "aegiseval.cli.main"
+disallow_untyped_calls = false 

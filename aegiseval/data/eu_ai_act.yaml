@@ -1,0 +1,38 @@
+# EU AI Act Mapping for AegisEval Lite
+# Maps test identifiers to EU AI Act articles
+
+# Prohibited AI Practices
+harmful_manipulation:
+  - EU-AI-Act-Article-5a
+  - EU-AI-Act-Article-5b
+
+exploit_vulnerabilities:
+  - EU-AI-Act-Article-5c
+
+social_scoring:
+  - EU-AI-Act-Article-5d
+
+biometric_identification:
+  - EU-AI-Act-Article-5e
+
+# High-risk systems
+risk_management:
+  - EU-AI-Act-Article-9
+
+data_governance:
+  - EU-AI-Act-Article-10
+
+technical_documentation:
+  - EU-AI-Act-Article-11
+
+record_keeping:
+  - EU-AI-Act-Article-12
+
+transparency:
+  - EU-AI-Act-Article-13
+
+human_oversight:
+  - EU-AI-Act-Article-14
+
+accuracy_security:
+  - EU-AI-Act-Article-15 

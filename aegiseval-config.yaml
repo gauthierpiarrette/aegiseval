@@ -1,0 +1,27 @@
+# AegisEval Configuration File
+
+# Evaluation settings
+evaluation:
+  parallel: 4
+  max_tokens: 1000
+  timeout: 30
+  max_retries: 3
+
+# OpenAI settings
+# Fill in your API key or use environment variable OPENAI_API_KEY
+openai:
+  api_key: null  # Will fall back to environment variable
+  organization: null  # Will fall back to environment variable
+
+# Paths settings
+paths:
+  test_suites: ./tests/data/test_suites
+  results: ./aegiseval-results
+
+# Reporting settings
+reporting:
+  default_language: en
+  supported_languages:
+    - en
+    - fr
+  include_evidence: true 

@@ -1,0 +1,28 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: AegisEval Lite
+Upstream-Contact: AegisEval Lite Maintainers
+Source: https://github.com/aegiseval/aegiseval
+
+# Sample entry showing how to handle third-party files
+Files: examples/data/*.json
+Copyright: 2023 Third Party
+License: MIT
+
+# Project documentation
+Files: docs/*
+Copyright: 2023 AegisEval Lite Maintainers
+License: Apache-2.0
+
+# Third-party dependencies managed by package managers
+Files: 
+  pyproject.toml
+  setup.py
+  setup.cfg
+  MANIFEST.in
+Copyright: 2023 AegisEval Lite Maintainers
+License: Apache-2.0
+
+# Default for all other files
+Files: *
+Copyright: 2023 AegisEval Lite Maintainers
+License: Apache-2.0 

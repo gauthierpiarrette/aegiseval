@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "EU AI Act Mapping",
+  "type": "object",
+  "additionalProperties": false,
+  "patternProperties": {
+    "^[a-zA-Z0-9_-]+$": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^EU-AI-Act-Article-[0-9]+[a-z]?$"
+      },
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "List of EU AI Act articles that this test maps to"
+    }
+  },
+  "description": "Mapping of test identifiers to EU AI Act articles"
+} 

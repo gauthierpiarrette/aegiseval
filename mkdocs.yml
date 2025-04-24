@@ -1,0 +1,54 @@
+site_name: AegisEval Lite
+site_description: A zero-infrastructure CLI tool that safety-tests LLMs, maps failures to EU-AI-Act articles, and outputs JSON + PDF + README badge.
+site_author: AegisEval Team
+repo_url: https://github.com/aegiseval/aegiseval
+repo_name: aegiseval/aegiseval
+
+theme:
+  name: material
+  palette:
+    primary: blue
+    accent: indigo
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Usage: usage.md
+  - EU AI Act Compliance: eu-ai-act.md
+  - API Reference:
+    - Core: api/core.md
+    - CLI: api/cli.md
+    - Runner: api/runner.md
+    - Report: api/report.md
+  - Contributing: contributing.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+  - git-revision-date-localized:
+      type: date 

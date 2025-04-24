@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="{{ language }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ t('report.title') }} - {{ model_id }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3, h4 {
+            color: #2c3e50;
+            margin-top: 1.5em;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .score-box {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .score-value {
+            font-size: 3em;
+            font-weight: bold;
+        }
+        .score-level {
+            font-size: 1.2em;
+            margin-top: 10px;
+        }
+        .level-critical_risk { color: #e74c3c; }
+        .level-high_risk { color: #e67e22; }
+        .level-moderate_risk { color: #f1c40f; }
+        .level-low_risk { color: #2ecc71; }
+        
+        .category-scores {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            margin: 20px 0;
+        }
+        .category-score {
+            flex-basis: 48%;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .test-example {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-left: 4px solid #3498db;
+        }
+        .test-example.failed {
+            border-left-color: #e74c3c;
+        }
+        .test-example.passed {
+            border-left-color: #2ecc71;
+        }
+        
+        .prompt {
+            background-color: #eee;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .response {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f8f9fa;
+        }
+        
+        .improvement-area {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-left: 4px solid #f39c12;
+        }
+        
+        .recommendations {
+            list-style-type: disc;
+            margin-left: 20px;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            font-size: 0.9em;
+            color: #7f8c8d;
+        }
+        
+        @media print {
+            body {
+                font-size: 12pt;
+            }
+            .no-print {
+                display: none;
+            }
+            a {
+                text-decoration: none;
+                color: #000;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{ t('report.title') }}</h1>
+        <p>{{ t('report.subtitle') }}</p>
+    </div>
+    
+    <h2>{{ t('report.summary') }}</h2>
+    <p>{{ t('report.model') }}: <strong>{{ model_id }}</strong></p>
+    <p>{{ t('report.date') }}: {{ timestamp }}</p>
+    <p>{{ t('report.test_suite') }}: {{ test_suite_id }}</p>
+    
+    <div class="score-box">
+        <div class="score-value">{{ "%.0f"|format(safety_score.overall_score * 100) }}/100</div>
+        <div class="score-level level-{{ safety_score.safety_level }}">
+            {{ t('safety_level.' + safety_score.safety_level) }}
+        </div>
+        <p>{{ t('report.confidence') }}: {{ "%.1f"|format(safety_score.confidence * 100) }}%</p>
+    </div>
+    
+    <h2>{{ t('report.category_scores') }}</h2>
+    <div class="category-scores">
+        {% for category, score in safety_score.category_scores.items() %}
+        <div class="category-score">
+            <h3>{{ t('categories.' + category) }}</h3>
+            <p>{{ t('report.pass_rate') }}: {{ "%.1f"|format(score.pass_rate * 100) }}%</p>
+            <p>{{ t('report.tests_passed') }}: {{ score.tests_passed }}/{{ score.tests_total }}</p>
+            <p>{{ t('report.severity') }}: {{ t('severity.' + score.severity) }}</p>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <h2>{{ t('report.regulatory_compliance') }}</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>{{ t('report.regulation') }}</th>
+                <th>{{ t('report.compliance') }}</th>
+                <th>{{ t('report.pass_rate') }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for reg_id, score in safety_score.regulation_scores.items() %}
+            <tr>
+                <td>
+                    <strong>{{ score.title }}</strong><br>
+                    <small>{{ score.description }}</small>
+                </td>
+                <td>{{ t('compliance.' + score.compliance_level) }}</td>
+                <td>{{ "%.1f"|format(score.pass_rate * 100) }}%</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <h2>{{ t('report.improvement_areas') }}</h2>
+    {% for area in improvement_areas %}
+    <div class="improvement-area">
+        <h3>{{ t('categories.' + area.category) }}</h3>
+        <p>{{ area.description }}</p>
+        <p>{{ t('report.failed_tests') }}: {{ area.failed_tests }}</p>
+        
+        <h4>{{ t('report.recommendations') }}</h4>
+        <ul class="recommendations">
+            {% for recommendation in area.recommendations %}
+            <li>{{ recommendation }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endfor %}
+    
+    <h2>{{ t('report.test_examples') }}</h2>
+    
+    <h3>{{ t('report.failed_examples') }}</h3>
+    {% for example in failed_examples %}
+    <div class="test-example failed">
+        <h4>{{ example.test_case_id }} ({{ t('categories.' + example.category) }})</h4>
+        <div class="prompt">
+            <strong>{{ t('report.prompt') }}:</strong>
+            <p>{{ example.prompt }}</p>
+        </div>
+        <div class="response">
+            <strong>{{ t('report.response') }}:</strong>
+            <p>{{ example.response }}</p>
+        </div>
+    </div>
+    {% endfor %}
+    
+    <h3>{{ t('report.passed_examples') }}</h3>
+    {% for example in passed_examples %}
+    <div class="test-example passed">
+        <h4>{{ example.test_case_id }} ({{ t('categories.' + example.category) }})</h4>
+        <div class="prompt">
+            <strong>{{ t('report.prompt') }}:</strong>
+            <p>{{ example.prompt }}</p>
+        </div>
+        <div class="response">
+            <strong>{{ t('report.response') }}:</strong>
+            <p>{{ example.response }}</p>
+        </div>
+    </div>
+    {% endfor %}
+    
+    <h2>{{ t('report.evaluation_summary') }}</h2>
+    <table>
+        <tbody>
+            <tr>
+                <td>{{ t('report.total_tests') }}</td>
+                <td>{{ evaluation_result.total_tests }}</td>
+            </tr>
+            <tr>
+                <td>{{ t('report.passed_tests') }}</td>
+                <td>{{ evaluation_result.passed_tests }}</td>
+            </tr>
+            <tr>
+                <td>{{ t('report.failed_tests') }}</td>
+                <td>{{ evaluation_result.failed_tests }}</td>
+            </tr>
+            <tr>
+                <td>{{ t('report.error_tests') }}</td>
+                <td>{{ evaluation_result.error_tests }}</td>
+            </tr>
+        </tbody>
+    </table>
+    
+    <div class="footer">
+        <p>{{ t('report.generated_by') }} AegisEval Lite v0.1.0</p>
+        <p>{{ t('report.timestamp') }}: {{ timestamp }}</p>
+    </div>
+</body>
+</html> 
