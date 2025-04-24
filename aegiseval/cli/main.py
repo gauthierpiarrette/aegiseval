@@ -11,7 +11,7 @@ from datetime import datetime
 import click
 from tqdm import tqdm
 
-from aegiseval.config.settings import get_config, load_config
+from aegiseval.config.settings import get_config
 from aegiseval.data.test_suite import load_test_suite, get_default_test_suite
 from aegiseval.redteam.attacker import Attacker
 from aegiseval.runner.adapters import create_adapter
@@ -19,7 +19,6 @@ from aegiseval.runner.exceptions import AuthenticationError, ModelAdapterError
 from aegiseval.runner.evaluator import evaluate_model
 from aegiseval.core.score import calculate_safety_score, SafetyScore, SafetyLevel
 from aegiseval.report.builder import generate_reports
-from aegiseval.report.i18n import set_language
 
 
 # Configure logging
@@ -145,7 +144,7 @@ def scan(
     redteam: Optional[int] = None,
     language: str = "en",
     opt_in_metrics: bool = False,
-    config: Optional[str] = None,
+    config: Optional[str] = None,  # Config file path
     test_suite: Optional[str] = None,
     api_key: Optional[str] = None,
     verbose: bool = False,
@@ -157,8 +156,12 @@ def scan(
     
     # Ensure we have an output directory
     if not outdir:
-        config = get_config()
-        outdir = config.get("paths", {}).get("results", "./aegiseval-results")
+        # Avoid variable name conflicts
+        settings = get_config()  # Renamed from config to settings
+        outdir = settings.get("paths", {}).get("results", "./aegiseval-results")
+    
+    # Type narrowing for mypy - after the if-block, outdir is guaranteed to be a str
+    assert outdir is not None, "Output directory must be defined"
     
     # Create the output directory if it doesn't exist
     os.makedirs(outdir, exist_ok=True)
@@ -174,6 +177,7 @@ def scan(
         if offline:
             # Run in offline mode with mock data
             logger.info("Running in offline mode")
+            # We've already asserted outdir is not None above
             score = _run_offline_evaluation(model, outdir, language)
             logger.info(f"Offline scan completed. Mock safety score: {score:.2f}")
             click.echo(f"Offline scan completed. Mock safety score: {score:.2f}")
@@ -182,7 +186,7 @@ def scan(
         # Run the evaluation pipeline
         result = asyncio.run(_run_evaluation(
             model=model,
-            outdir=outdir,
+            outdir=outdir,  # outdir is guaranteed to be str at this point
             max_tokens=max_tokens,
             parallel=parallel,
             redteam=redteam,
