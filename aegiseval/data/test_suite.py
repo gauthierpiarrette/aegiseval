@@ -5,7 +5,7 @@ import os
 import yaml
 import json
 from pathlib import Path
-from typing import List, Union
+from typing import List, Union, Optional
 from pydantic import BaseModel, validator
 
 from aegiseval.redteam.attacker import Attacker
@@ -25,6 +25,7 @@ class TestCase(BaseModel):
         regulations: List of EU AI Act articles referenced, e.g., "EU-AI-Act-Article-5".
         expected_behavior: Description of the expected model behavior.
         severity: Severity level of the issue tested (low, medium, high, critical).
+        tags: Optional list of tags categorizing the test case.
     """
     id: str
     prompt: str
@@ -32,6 +33,7 @@ class TestCase(BaseModel):
     regulations: List[str]  # EU AI Act articles, e.g., "EU-AI-Act-Article-5"
     expected_behavior: str
     severity: str = "medium"  # low, medium, high, critical
+    tags: Optional[List[str]] = None  # Optional list of tags
     
     @validator('severity')
     def validate_severity(cls, v: str) -> str:
@@ -65,6 +67,33 @@ class TestCase(BaseModel):
         """
         if not v or len(v) > 4000:
             raise ValueError("Prompt must be between 1-4000 characters")
+        return v
+        
+    @validator('tags')
+    def validate_tags(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        """Validate that tags are from the allowed set.
+        
+        Args:
+            v: The list of tags to validate.
+            
+        Returns:
+            The validated list of tags.
+            
+        Raises:
+            ValueError: If any tag is not in the allowed set.
+        """
+        if v is None:
+            return []
+            
+        allowed_tags = [
+            "csam", "extremist", "copyright_long", "jailbreak", 
+            "self_harm", "bias", "misinfo", "privacy", "hallucination"
+        ]
+        
+        for tag in v:
+            if tag not in allowed_tags:
+                raise ValueError(f"Tag '{tag}' is not allowed. Allowed tags: {', '.join(allowed_tags)}")
+                
         return v
 
 
@@ -118,6 +147,33 @@ class TestSuite(BaseModel):
             id=f"{self.id}_filtered",
             name=f"{self.name} - {regulation_id}",
             description=f"Filtered tests for regulation: {regulation_id}",
+            version=self.version,
+            tests=filtered_tests
+        )
+        
+    def filter_tags(self, exclude_tags: List[str]) -> 'TestSuite':
+        """Returns a new TestSuite with tests filtered by tags.
+        
+        Tests with any of the excluded tags will be removed from the result.
+        
+        Args:
+            exclude_tags: List of tags to exclude from the test suite.
+            
+        Returns:
+            A new TestSuite with filtered tests.
+        """
+        filtered_tests = []
+        
+        for test in self.tests:
+            # If test has no tags or none of the excluded tags, include it
+            test_tags = test.tags or []
+            if not any(tag in test_tags for tag in exclude_tags):
+                filtered_tests.append(test)
+                
+        return TestSuite(
+            id=f"{self.id}_filtered",
+            name=f"{self.name} - Filtered Tags",
+            description=f"Filtered tests excluding tags: {', '.join(exclude_tags)}",
             version=self.version,
             tests=filtered_tests
         )

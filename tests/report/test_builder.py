@@ -2,7 +2,6 @@ import pytest
 import os
 import tempfile
 from datetime import datetime, timedelta
-from pathlib import Path
 
 from aegiseval.runner.evaluator import EvaluationResult, TestCaseResult
 from aegiseval.grader.classifiers import ClassificationResult

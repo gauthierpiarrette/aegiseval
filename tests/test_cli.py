@@ -2,8 +2,6 @@
 """Tests for the CLI interface."""
 
 import os
-import shutil
-import tempfile
 from unittest.mock import patch, MagicMock
 
 import pytest

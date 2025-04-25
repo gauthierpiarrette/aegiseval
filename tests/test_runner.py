@@ -3,7 +3,6 @@
 
 import json
 import pytest
-import httpx
 import asyncio
 from typing import Generator, Any
 

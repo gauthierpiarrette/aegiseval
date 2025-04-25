@@ -5,7 +5,7 @@ from aegiseval.runner.evaluator import EvaluationResult, TestCaseResult
 from aegiseval.grader.classifiers import ClassificationResult
 from aegiseval.core.score import (
     calculate_safety_score, get_improvement_areas,
-    SafetyScore, SafetyLevel, CategoryScore, RegulationScore
+    SafetyScore, SafetyLevel
 )
 
 

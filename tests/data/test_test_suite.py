@@ -2,9 +2,8 @@
 """Tests for the test suite module."""
 
 import pytest
-from pathlib import Path
 
-from aegiseval.data.test_suite import TestCase, TestSuite, load_test_suite, save_test_suite
+from aegiseval.data.test_suite import TestCase, TestSuite
 from aegiseval.redteam.attacker import Attacker
 
 

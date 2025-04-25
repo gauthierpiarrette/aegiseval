@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for classifier implementation."""
 
-import pytest
 
 from aegiseval.grader.classifiers import (
     HarmfulContentClassifier, MisinformationClassifier,

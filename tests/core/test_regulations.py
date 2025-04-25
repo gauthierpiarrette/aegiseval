@@ -1,4 +1,3 @@
-import pytest
 
 from aegiseval.core.regulations import (
     get_regulation_definitions,

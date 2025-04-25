@@ -5,7 +5,8 @@ import os
 import sys
 import logging
 import asyncio
-from typing import Optional, Dict, NoReturn, Any
+import re
+from typing import Optional, Dict, NoReturn, Any, Set
 from datetime import datetime
 
 import click
@@ -19,6 +20,14 @@ from aegiseval.runner.exceptions import AuthenticationError, ModelAdapterError
 from aegiseval.runner.evaluator import evaluate_model
 from aegiseval.core.score import calculate_safety_score, SafetyScore, SafetyLevel
 from aegiseval.report.builder import generate_reports
+from aegiseval.grader.classifiers import CsAmContentError
+from aegiseval.config.provider_loader import load_profile
+from aegiseval.grader.pipeline import IllegalContentError, handle_illegal_content
+from aegiseval.cli.banner import confirm_risky_run
+from aegiseval.config.flags import HIGH_RISK_TAGS
+
+# Update global flags from config.flags module
+from aegiseval.config import flags
 
 
 # Configure logging
@@ -112,6 +121,11 @@ def cli() -> None:
     help="Language for generated reports (e.g., 'en', 'fr')"
 )
 @click.option(
+    "--profile",
+    type=str,
+    help="Provider profile to use (e.g., 'openai_safe', 'local_default')"
+)
+@click.option(
     "--opt-in-metrics/--no-metrics",
     default=False,
     help="Enable anonymous usage metrics collection"
@@ -135,6 +149,15 @@ def cli() -> None:
     is_flag=True,
     help="Enable verbose logging"
 )
+@click.option(
+    "--include-tags",
+    help="Comma-separated list of high-risk tags to include (e.g., csam,extremist,copyright_long) or 'all' to include all high-risk tags"
+)
+@click.option(
+    "--yes",
+    is_flag=True,
+    help="Auto-confirm running high-risk probes without interactive prompt"
+)
 def scan(
     model: str, 
     outdir: Optional[str], 
@@ -143,16 +166,39 @@ def scan(
     offline: bool,
     redteam: Optional[int] = None,
     language: str = "en",
+    profile: Optional[str] = None,
     opt_in_metrics: bool = False,
     config: Optional[str] = None,  # Config file path
     test_suite: Optional[str] = None,
     api_key: Optional[str] = None,
     verbose: bool = False,
+    include_tags: Optional[str] = None,
+    yes: bool = False,
 ) -> None:
     """Scan an LLM for safety issues."""
     # Configure logging
     setup_logging(verbose)
     logger = logging.getLogger("aegiseval.cli")
+    
+    # Process include-tags option - validate letters only
+    flags.include_tags = set()
+    if include_tags:
+        # Special case for "all"
+        if include_tags.lower() == "all":
+            flags.include_tags = set(HIGH_RISK_TAGS)
+            logger.info(f"Including all high-risk tags: {', '.join(flags.include_tags)}")
+        else:
+            tags = [tag.strip() for tag in include_tags.split(",")]
+            # Validate tag format (letters only)
+            for tag in tags:
+                if not re.match(r'^[a-zA-Z_]+$', tag):
+                    logger.error(f"Invalid tag format: {tag} - must contain only letters")
+                    click.echo(f"Error: Invalid tag format: {tag}", err=True)
+                    sys.exit(1)
+                flags.include_tags.add(tag)
+    
+    # Set yes flag for auto-confirm
+    flags.yes = yes
     
     # Ensure we have an output directory
     if not outdir:
@@ -174,6 +220,33 @@ def scan(
         offline = True
     
     try:
+        # Load provider profile if specified
+        provider_excluded_tags: Set[str] = set()
+        if profile:
+            try:
+                provider_profile = load_profile(profile)
+                provider_excluded_tags = set(provider_profile.excluded_tags)
+                
+                # Check for mismatch between include_tags and provider excluded tags
+                mismatch_tags = flags.include_tags.intersection(provider_excluded_tags)
+                if mismatch_tags:
+                    logger.warning(
+                        f"Warning: The following tags are explicitly excluded in the '{profile}' "
+                        f"profile but requested with --include-tags: {', '.join(mismatch_tags)}"
+                    )
+                    click.echo(
+                        f"Warning: Tags {', '.join(mismatch_tags)} conflict with profile '{profile}'",
+                        err=True
+                    )
+            except KeyError:
+                logger.error(f"Profile '{profile}' not found")
+                click.echo(f"Error: Profile '{profile}' not found", err=True)
+                sys.exit(1)
+        
+        # Interactive confirmation for risky tags if not in offline mode
+        if not offline and not yes:
+            confirm_risky_run(flags.include_tags)
+        
         if offline:
             # Run in offline mode with mock data
             logger.info("Running in offline mode")
@@ -192,7 +265,9 @@ def scan(
             redteam=redteam,
             language=language,
             test_suite_path=test_suite,
-            api_key=api_key
+            api_key=api_key,
+            profile=profile,
+            include_tags=flags.include_tags,
         ))
         
         # Extract paths and score
@@ -209,6 +284,10 @@ def scan(
         log_metrics(model, score, opt_in_metrics)
         
         click.echo(f"\nSafety Score: {score:.2f} (Reports saved to {outdir})")
+    
+    except IllegalContentError:
+        # Handle illegal content with consistent messaging and exit code
+        handle_illegal_content()
     
     except AuthenticationError as e:
         logger.error(f"Authentication error: {e}")
@@ -237,7 +316,9 @@ async def _run_evaluation(
     redteam: Optional[int],
     language: str,
     test_suite_path: Optional[str],
-    api_key: Optional[str]
+    api_key: Optional[str],
+    profile: Optional[str] = None,
+    include_tags: Optional[Set[str]] = None,
 ) -> Dict[str, Any]:
     """Run the full evaluation pipeline.
     
@@ -250,6 +331,8 @@ async def _run_evaluation(
         language: Language for reports
         test_suite_path: Path to custom test suite
         api_key: API key for model provider
+        profile: Provider profile to use
+        include_tags: Set of high-risk tags to include
         
     Returns:
         Dictionary containing report_paths and overall_score
@@ -276,17 +359,40 @@ async def _run_evaluation(
         test_suite = test_suite.with_redteam(attacker, redteam)
         logger.info(f"Created red-teamed test suite with {len(test_suite.tests)} tests")
     
-    # 3. Create model adapter
+    # 3. Load provider profile if specified
+    provider_profile = None
+    if profile:
+        try:
+            logger.info(f"Loading provider profile: {profile}")
+            provider_profile = load_profile(profile)
+            
+            # Filter out excluded tags from the test suite
+            if provider_profile.excluded_tags:
+                original_count = len(test_suite.tests)
+                test_suite = test_suite.filter_tags(exclude_tags=provider_profile.excluded_tags)
+                logger.info(f"Filtered test suite by excluded tags: {len(test_suite.tests)}/{original_count} tests remaining")
+        except KeyError as e:
+            logger.error(f"Failed to load provider profile: {e}")
+            raise ValueError(f"Provider profile '{profile}' not found") from e
+    
+    # 4. Create model adapter
     logger.info(f"Initializing adapter for model: {model}")
     adapter_kwargs: Dict[str, Any] = {}
     if api_key:
         adapter_kwargs["api_key"] = api_key
     if max_tokens is not None:
         adapter_kwargs["max_tokens"] = int(max_tokens)
+    
+    # Add provider profile settings to adapter kwargs
+    if provider_profile:
+        if provider_profile.system_header:
+            adapter_kwargs["system_prompt"] = provider_profile.system_header
+        if provider_profile.rpm_limit > 0:
+            adapter_kwargs["rpm_limit"] = provider_profile.rpm_limit
         
     model_adapter = create_adapter(model, **adapter_kwargs)
     
-    # 4. Set up progress tracking
+    # 5. Set up progress tracking
     tests = test_suite.tests  # type: Any
     total_tests = len(tests)
     progress_bar = tqdm(total=total_tests, desc="Evaluating", unit="test")
@@ -294,7 +400,7 @@ async def _run_evaluation(
     def update_progress(completed: int, total: int) -> None:
         progress_bar.update(completed - progress_bar.n)
     
-    # 5. Run the evaluation
+    # 6. Run the evaluation
     try:
         logger.info("Starting evaluation")
         evaluation_result = await evaluate_model(
@@ -312,7 +418,7 @@ async def _run_evaluation(
         logger.info(f"Failed tests: {evaluation_result.failed_tests}")
         logger.info(f"Error tests: {evaluation_result.error_tests}")
         
-        # 6. Calculate safety score
+        # 7. Calculate safety score
         logger.info("Calculating safety score")
         safety_score = calculate_safety_score(evaluation_result)
         
@@ -354,7 +460,7 @@ async def _run_evaluation(
                 metadata={"error": "No safety score calculated"}
             )
         
-        # 7. Generate reports
+        # 8. Generate reports
         logger.info(f"Generating reports in {outdir}")
         
         # Explicitly type safety_score as SafetyScore for mypy
@@ -520,8 +626,21 @@ def _list_available_models() -> None:
 
 def main() -> NoReturn:
     """Main entry point for the CLI."""
-    cli()
-    sys.exit(0)
+    try:
+        cli()
+        sys.exit(0)
+    except CsAmContentError as e:
+        logger = logging.getLogger("aegiseval.cli")
+        logger.critical(f"FATAL ERROR: {e}")
+        logger.critical("Scan aborted due to detection of Child Sexual Abuse Material (CSAM) content.")
+        logger.critical("This is a critical safety violation that requires immediate attention.")
+        click.echo("CRITICAL: Scan aborted due to detection of CSAM content.", err=True)
+        sys.exit(13)
+    except Exception as e:
+        logger = logging.getLogger("aegiseval.cli")
+        logger.error(f"Unhandled error: {e}", exc_info=True)
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

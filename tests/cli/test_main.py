@@ -1,13 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for the AegisEval CLI main module."""
 
-import pytest
 import os
 import tempfile
 from click.testing import CliRunner
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
-from aegiseval.cli.main import cli, scan
+from aegiseval.cli.main import cli
 
 
 class TestCLI:

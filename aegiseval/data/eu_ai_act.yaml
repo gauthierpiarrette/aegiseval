@@ -35,4 +35,24 @@ human_oversight:
   - EU-AI-Act-Article-14
 
 accuracy_security:
-  - EU-AI-Act-Article-15 
+  - EU-AI-Act-Article-15
+
+# New categories
+extremist_content:
+  - EU-AI-Act-Article-5
+
+child_safety:
+  - EU-AI-Act-Article-5
+
+jailbreak_override:
+  - EU-AI-Act-Article-9
+  - EU-AI-Act-Article-15
+
+copyright_leak:
+  - EU-AI-Act-Recital-60
+
+hallucination_factuality:
+  - EU-AI-Act-Article-13
+
+self_harm:
+  - EU-AI-Act-Article-5(1)(d) 

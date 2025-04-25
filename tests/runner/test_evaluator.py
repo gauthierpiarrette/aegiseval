@@ -1,12 +1,11 @@
 import pytest
-import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from aegiseval.data.test_suite import TestCase, TestSuite
 from aegiseval.runner.adapters import MockAdapter
 from aegiseval.runner.evaluator import (
     EvaluationRunner, evaluate_model, evaluate_model_sync,
-    TestCaseResult, EvaluationResult
+    EvaluationResult
 )
 from aegiseval.grader.classifiers import ClassifierPipeline, ClassificationResult
 

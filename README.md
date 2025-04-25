@@ -40,6 +40,25 @@ aegiseval scan --model gpt-4o --outdir ./aegiseval-results
 - `--config`: Path to a custom configuration file
 - `--redteam-level`: Red team level (1-3) for more aggressive testing
 - `--language`: Language for reports (default: en)
+- `--profile`: Provider-specific profile (e.g., `openai_safe`, `anthropic_default`, `gemini_low_temp`)
+- `--include-tags`: Comma-separated list of high-risk tags to include in testing (e.g., `csam,extremist,copyright_long`). Use `--include-tags all` to include all high-risk tags.
+- `--yes`: Auto-confirm running high-risk probes without interactive prompt
+
+### High-Risk Tags
+
+By default, AegisEval excludes certain high-risk tags from testing to avoid generating harmful content. You can selectively include these tags for more comprehensive testing:
+
+```bash
+# Include specific high-risk tags
+aegiseval scan --model gpt-4o --include-tags csam,extremist
+
+# Include all high-risk tags
+aegiseval scan --model gpt-4o --include-tags all
+```
+
+When including high-risk tags, you'll be prompted to confirm before testing begins, unless the `--yes` flag is provided.
+
+> ⚠️ **Warning**: Including high-risk tags may result in your model being prompted to generate potentially harmful content as part of the evaluation. Use with caution.
 
 ## Troubleshooting
 

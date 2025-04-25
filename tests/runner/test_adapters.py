@@ -4,12 +4,11 @@
 import pytest
 import httpx
 import tenacity
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, MagicMock
 
 from aegiseval.runner.adapters import OpenAIAdapter, MockAdapter, create_adapter
 from aegiseval.runner.exceptions import (
-    AuthenticationError, RateLimitError, InvalidRequestError,
-    ServiceUnavailableError, TimeoutError, ModelAdapterError
+    AuthenticationError, RateLimitError
 )
 
 

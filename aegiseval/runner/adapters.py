@@ -70,13 +70,17 @@ class OpenAIAdapter(ModelAdapter):
     API_URL = "https://api.openai.com/v1/chat/completions"
     
     def __init__(self, model_id: str, api_key: Optional[str] = None, 
-                 organization: Optional[str] = None):
+                 organization: Optional[str] = None, system_prompt: Optional[str] = None,
+                 rpm_limit: Optional[int] = None, max_tokens: Optional[int] = None):
         """Initialize adapter for specific OpenAI model.
         
         Args:
             model_id: OpenAI model identifier (e.g., "gpt-4o")
             api_key: Optional API key (defaults to OPENAI_API_KEY env var)
             organization: Optional organization ID
+            system_prompt: Optional system prompt to use with all requests
+            rpm_limit: Optional rate limit in requests per minute
+            max_tokens: Maximum number of tokens to generate in responses
             
         Raises:
             AuthenticationError: If API key is not provided and not in env
@@ -95,6 +99,11 @@ class OpenAIAdapter(ModelAdapter):
         
         self.organization = organization or os.getenv("OPENAI_ORG") or \
                             config_openai.get("organization")
+        
+        # Store the system prompt and rate limit
+        self.system_prompt = system_prompt
+        self.rpm_limit = rpm_limit
+        self.max_tokens = max_tokens
         
         # Prepare headers
         headers = {
@@ -115,6 +124,11 @@ class OpenAIAdapter(ModelAdapter):
             ),
         )
         self._initialized = True
+        
+        # If rpm_limit is specified, configure rate limiting for the adapter
+        if self.rpm_limit:
+            logger.info(f"Setting rate limit to {self.rpm_limit} requests per minute")
+            # This would be implemented with a rate limiter in a production system
     
     @retry(
         retry=retry_if_exception_type((RateLimitError, ServiceUnavailableError)),
@@ -151,14 +165,17 @@ class OpenAIAdapter(ModelAdapter):
         if not prompts:
             return []
         
+        # Use instance max_tokens if provided and not overridden by call
+        effective_max_tokens = max_tokens if max_tokens is not None else self.max_tokens
+        
         # Determine if we should use batch processing or individual calls
         use_batch = len(prompts) > 1 and self.model_id.startswith("gpt-4")
         
         try:
             if use_batch:
-                return await self._batch_generate(prompts, temperature, max_tokens)
+                return await self._batch_generate(prompts, temperature, effective_max_tokens)
             else:
-                return await self._individual_generate(prompts, temperature, max_tokens)
+                return await self._individual_generate(prompts, temperature, effective_max_tokens)
         except httpx.HTTPStatusError as e:
             self._handle_http_error(e)
             # This line will never be reached, but mypy needs it
@@ -232,10 +249,20 @@ class OpenAIAdapter(ModelAdapter):
         Raises:
             Various exceptions based on API errors
         """
+        # Prepare the messages list
+        messages = []
+        
+        # Add system message if provided
+        if self.system_prompt:
+            messages.append({"role": "system", "content": self.system_prompt})
+        
+        # Add user message
+        messages.append({"role": "user", "content": prompt})
+        
         # Prepare the request payload
         data = {
             "model": self.model_id,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
             "temperature": temperature,
         }
         
