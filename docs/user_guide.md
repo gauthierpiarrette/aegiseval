@@ -9,6 +9,17 @@
 
 *(assumes 3 K in + 1 K out tokens per scan)* 
 
+### Supported Models
+
+AegisEval Lite supports the following model providers:
+
+| Scheme | Example | Env var |  |
+|--------|---------|---------|--|
+| openai | gpt-4o | OPENAI_API_KEY |  |
+| gemini | gemini:gemini-1.5-pro | GOOGLE_API_KEY |  |
+| hf | hf:meta-llama/Llama-3-70B | HF_TOKEN |  |
+| claude | claude:claude-3-opus-202402 | ANTHROPIC_API_KEY |  |
+
 ### Using with OpenAI keys
 ```bash
 aegiseval scan --model gpt-4o --profile openai_safe

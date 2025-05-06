@@ -1,8 +1,8 @@
 site_name: AegisEval Lite
 site_description: A zero-infrastructure CLI tool that safety-tests LLMs, maps failures to EU-AI-Act articles, and outputs JSON + PDF + README badge.
 site_author: AegisEval Team
-repo_url: https://github.com/aegiseval/aegiseval
-repo_name: aegiseval/aegiseval
+repo_url: https://github.com/gauthierpiarrette/aegiseval
+repo_name: gauthierpiarrette/aegiseval
 
 theme:
   name: material

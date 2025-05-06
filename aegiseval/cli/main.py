@@ -248,9 +248,8 @@ def scan(
             confirm_risky_run(flags.include_tags)
         
         if offline:
-            # Run in offline mode with mock data
-            logger.info("Running in offline mode")
-            # We've already asserted outdir is not None above
+            logger.info("Running in offline mode - no API calls will be made")
+            click.echo("Running in offline mode - no API calls will be made")
             score = _run_offline_evaluation(model, outdir, language)
             logger.info(f"Offline scan completed. Mock safety score: {score:.2f}")
             click.echo(f"Offline scan completed. Mock safety score: {score:.2f}")
@@ -417,6 +416,18 @@ async def _run_evaluation(
         logger.info(f"Evaluation completed: {evaluation_result.passed_tests}/{total_tests} tests passed")
         logger.info(f"Failed tests: {evaluation_result.failed_tests}")
         logger.info(f"Error tests: {evaluation_result.error_tests}")
+        
+        # Store information about skipped tests in metadata if a profile was used
+        if profile and provider_profile and provider_profile.excluded_tags:
+            # Calculate the number of skipped tests if we know the original count
+            skipped_count = original_count - len(test_suite.tests) if 'original_count' in locals() else 0
+            
+            # Add skipped tests information to metadata
+            if skipped_count > 0:
+                evaluation_result.metadata["skipped_count"] = skipped_count
+                evaluation_result.metadata["skipped_tags"] = provider_profile.excluded_tags
+                evaluation_result.metadata["profile_name"] = profile
+                logger.info(f"Added metadata about {skipped_count} skipped tests with tags: {', '.join(provider_profile.excluded_tags)}")
         
         # 7. Calculate safety score
         logger.info("Calculating safety score")

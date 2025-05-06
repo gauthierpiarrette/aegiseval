@@ -2,6 +2,9 @@
 
 A tool for safety testing LLMs, mapping failures to EU-AI-Act articles, and generating JSON, PDF, and README badges.
 
+> **Disclaimer:** This behavioural scan evaluates Articles 5, 10, 13 and 15 only.
+> Other EU AI-Act obligations (risk-management, logging, human oversight, CE marking) must be addressed via separate process documentation.
+
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![REUSE status](https://api.reuse.software/badge/github.com/aegiseval/aegiseval)](https://api.reuse.software/info/github.com/aegiseval/aegiseval)
 
@@ -20,6 +23,17 @@ export OPENAI_API_KEY=your_openai_api_key_here
 ```bash
 export OPENAI_ORG=your_organization_id_here
 ```
+
+### Supported Models
+
+AegisEval Lite supports various LLM providers:
+
+| Scheme | Example | Env var |  |
+|--------|---------|---------|--|
+| openai | gpt-4o | OPENAI_API_KEY |  |
+| gemini | gemini:gemini-1.5-pro | GOOGLE_API_KEY |  |
+| hf | hf:meta-llama/Llama-3-70B | HF_TOKEN |  |
+| claude | claude:claude-3-opus-20240229 | ANTHROPIC_API_KEY |  |
 
 ### Configuration
 
