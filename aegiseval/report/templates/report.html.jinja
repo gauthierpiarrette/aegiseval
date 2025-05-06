@@ -119,6 +119,12 @@
             color: #7f8c8d;
         }
         
+        .progress-bar {
+            font-family: monospace;
+            font-size: 14px;
+            white-space: pre;
+        }
+        
         @media print {
             body {
                 font-size: 12pt;
@@ -139,6 +145,12 @@
         <p>{{ t('report.subtitle') }}</p>
     </div>
     
+    <!-- Disclaimer -->
+    <div style="background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; padding: 10px; margin-bottom: 20px; font-size: 0.9em; color: #495057;">
+        <strong>Disclaimer:</strong> This behavioural scan evaluates Articles 5, 10, 13 and 15 only.
+        Other EU AI-Act obligations (risk-management, logging, human oversight, CE marking) must be addressed via separate process documentation.
+    </div>
+    
     <h2>{{ t('report.summary') }}</h2>
     <p>{{ t('report.model') }}: <strong>{{ model_id }}</strong></p>
     <p>{{ t('report.date') }}: {{ timestamp }}</p>
@@ -149,15 +161,18 @@
         <div class="score-level level-{{ safety_score.safety_level }}">
             {{ t('safety_level.' + safety_score.safety_level) }}
         </div>
+        {% if safety_score.confidence > 0 %}
         <p>{{ t('report.confidence') }}: {{ "%.1f"|format(safety_score.confidence * 100) }}%</p>
+        {% endif %}
     </div>
     
     <h2>{{ t('report.category_scores') }}</h2>
     <div class="category-scores">
         {% for category, score in safety_score.category_scores.items() %}
         <div class="category-score">
-            <h3>{{ t('categories.' + category) }}</h3>
+            <h3>{{ get_category_name(category) }}</h3>
             <p>{{ t('report.pass_rate') }}: {{ "%.1f"|format(score.pass_rate * 100) }}%</p>
+            <p class="progress-bar">{{ category_bars[category] }}</p>
             <p>{{ t('report.tests_passed') }}: {{ score.tests_passed }}/{{ score.tests_total }}</p>
             <p>{{ t('report.severity') }}: {{ t('severity.' + score.severity) }}</p>
         </div>
@@ -190,7 +205,7 @@
     <h2>{{ t('report.improvement_areas') }}</h2>
     {% for area in improvement_areas %}
     <div class="improvement-area">
-        <h3>{{ t('categories.' + area.category) }}</h3>
+        <h3>{{ get_category_name(area.category) }}</h3>
         <p>{{ area.description }}</p>
         <p>{{ t('report.failed_tests') }}: {{ area.failed_tests }}</p>
         
@@ -208,7 +223,7 @@
     <h3>{{ t('report.failed_examples') }}</h3>
     {% for example in failed_examples %}
     <div class="test-example failed">
-        <h4>{{ example.test_case_id }} ({{ t('categories.' + example.category) }})</h4>
+        <h4>{{ example.name }} - {{ example.test_case_id }} ({{ get_category_name(example.category) }})</h4>
         <div class="prompt">
             <strong>{{ t('report.prompt') }}:</strong>
             <p>{{ example.prompt }}</p>
@@ -223,7 +238,7 @@
     <h3>{{ t('report.passed_examples') }}</h3>
     {% for example in passed_examples %}
     <div class="test-example passed">
-        <h4>{{ example.test_case_id }} ({{ t('categories.' + example.category) }})</h4>
+        <h4>{{ example.name }} - {{ example.test_case_id }} ({{ get_category_name(example.category) }})</h4>
         <div class="prompt">
             <strong>{{ t('report.prompt') }}:</strong>
             <p>{{ example.prompt }}</p>
@@ -254,6 +269,18 @@
                 <td>{{ t('report.error_tests') }}</td>
                 <td>{{ evaluation_result.error_tests }}</td>
             </tr>
+            {% if skipped_tests_info and skipped_tests_info.count > 0 %}
+            <tr>
+                <td>Tests Skipped</td>
+                <td>{{ skipped_tests_info.count }} (tags: {{ skipped_tests_info.tags }})</td>
+            </tr>
+            {% if evaluation_result.metadata and evaluation_result.metadata.profile_name %}
+            <tr>
+                <td>Profile Used</td>
+                <td>{{ evaluation_result.metadata.profile_name }}</td>
+            </tr>
+            {% endif %}
+            {% endif %}
         </tbody>
     </table>
     

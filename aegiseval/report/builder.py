@@ -4,6 +4,7 @@
 import json
 import os
 import logging
+import random
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple, List
 from datetime import datetime
@@ -12,7 +13,7 @@ import jinja2
 from xhtml2pdf import pisa
 
 from aegiseval.report.i18n import get_translator
-from aegiseval.runner.evaluator import EvaluationResult, TestCaseResult
+from aegiseval.runner.evaluator import EvaluationResult
 from aegiseval.core.score import SafetyScore, get_improvement_areas
 from aegiseval.config.settings import get_config
 
@@ -62,9 +63,56 @@ class ReportBuilder:
         
         # Add translator function to Jinja
         self.jinja_env.globals['t'] = self.translator.get
+        self.jinja_env.globals['get_category_name'] = self._get_category_display_name
         
         # Prepare output directory
         os.makedirs(self.output_dir, exist_ok=True)
+        
+        # Process category names
+        self._process_category_names()
+    
+    def _process_category_names(self) -> None:
+        """Process category names to remove prefixes and prepare display names."""
+        # Update category scores with cleaned category names
+        processed_categories = {}
+        for category, score in self.safety_score.category_scores.items():
+            # Strip the "categories." prefix if present
+            clean_category = category.split(".", 1)[-1]
+            score.category = clean_category
+            processed_categories[clean_category] = score
+        
+        self.safety_score.category_scores = processed_categories
+        
+        # Also update categories in test results
+        for result in self.evaluation_result.results:
+            if result.category:
+                result.category = result.category.split(".", 1)[-1]
+    
+    def _get_category_display_name(self, category: str) -> str:
+        """Get a display name for a category.
+        
+        Args:
+            category: The category identifier
+            
+        Returns:
+            A user-friendly display name for the category
+        """
+        # First try to get the lay_name from translation
+        trans_key = f'categories.{category}.lay_name'
+        lay_name = self.translator.get(trans_key)
+        
+        # If the key was returned unchanged, it means no translation was found
+        if lay_name == trans_key:
+            # Fall back to the category title
+            title_key = f'categories.{category}'
+            title = self.translator.get(title_key)
+            
+            # If even that returns the key, use the category name directly
+            if title == title_key:
+                return category.replace('_', ' ').title()
+            return title
+        
+        return lay_name
     
     def generate_all_reports(self) -> Dict[str, str]:
         """Generate all report formats.
@@ -84,25 +132,54 @@ class ReportBuilder:
         
         return report_paths
     
+    def _safe_model_id(self) -> str:
+        """Get a sanitized version of model_id for filesystem use.
+        
+        Returns:
+            Sanitized model ID safe for filename use
+        """
+        # Replace slashes with underscores to avoid directory structure issues
+        model_id = self.safety_score.model_id
+        return model_id.replace("/", "_").replace(":", "_")
+    
+    def _ensure_output_path(self, filepath: str) -> str:
+        """Ensure the directory for a file path exists.
+        
+        Args:
+            filepath: Path where a file will be written
+            
+        Returns:
+            The same filepath after ensuring directory exists
+        """
+        os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
+        return filepath
+    
     def generate_json(self) -> str:
         """Generate a JSON report.
         
         Returns:
             Path to the generated JSON file
         """
-        model_id = self.safety_score.model_id
+        # Use safe model ID to avoid directory structure issues
+        model_id = self._safe_model_id()
         json_path = os.path.join(self.output_dir, f"{model_id}_report.json")
+        
+        # Prepare safety score data with conditional confidence
+        safety_score_data = {
+            "overall": self.safety_score.overall_score,
+            "level": self.safety_score.safety_level
+        }
+        
+        # Only include confidence if it's non-zero (statsmodels was available)
+        if self.safety_score.confidence > 0:
+            safety_score_data["confidence"] = self.safety_score.confidence
         
         # Prepare the report data
         report_data = {
-            "model": model_id,
+            "model": self.safety_score.model_id,  # Keep original model ID in report
             "test_suite": self.safety_score.test_suite_id,
             "timestamp": self.safety_score.timestamp,
-            "safety_score": {
-                "overall": self.safety_score.overall_score,
-                "level": self.safety_score.safety_level,
-                "confidence": self.safety_score.confidence
-            },
+            "safety_score": safety_score_data,
             "category_scores": {
                 category: {
                     "pass_rate": score.pass_rate,
@@ -157,7 +234,8 @@ class ReportBuilder:
             }
         }
         
-        # Write the JSON report
+        # Ensure the directory exists and write the JSON report
+        self._ensure_output_path(json_path)
         with open(json_path, 'w', encoding='utf-8') as f:
             json.dump(report_data, f, indent=2, ensure_ascii=False)
         
@@ -170,7 +248,8 @@ class ReportBuilder:
         Returns:
             Path to the generated HTML file
         """
-        model_id = self.safety_score.model_id
+        # Use safe model ID to avoid directory structure issues
+        model_id = self._safe_model_id()
         html_path = os.path.join(self.output_dir, f"{model_id}_report.html")
         
         # Prepare template data
@@ -180,7 +259,8 @@ class ReportBuilder:
         template = self.jinja_env.get_template("report.html.jinja")
         html_content = template.render(**template_data)
         
-        # Write the HTML file
+        # Ensure the directory exists and write the HTML file
+        self._ensure_output_path(html_path)
         with open(html_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
         
@@ -193,13 +273,17 @@ class ReportBuilder:
         Returns:
             Path to the generated PDF file
         """
-        model_id = self.safety_score.model_id
+        # Use safe model ID to avoid directory structure issues
+        model_id = self._safe_model_id()
         pdf_path = os.path.join(self.output_dir, f"{model_id}_report.pdf")
         
         # First generate HTML content
         template_data = self._prepare_template_data()
         template = self.jinja_env.get_template("report.html.jinja")
         html_content = template.render(**template_data)
+        
+        # Ensure the directory exists
+        self._ensure_output_path(pdf_path)
         
         # Convert HTML to PDF
         with open(pdf_path, "wb") as pdf_file:
@@ -221,7 +305,8 @@ class ReportBuilder:
         Returns:
             Tuple of (markdown_path, svg_path)
         """
-        model_id = self.safety_score.model_id
+        # Use safe model ID to avoid directory structure issues
+        model_id = self._safe_model_id()
         md_path = os.path.join(self.output_dir, f"{model_id}_badge.md")
         svg_path = os.path.join(self.output_dir, f"{model_id}_badge.svg")
         
@@ -240,6 +325,10 @@ class ReportBuilder:
         
         # Create Markdown content
         md_content = f"![AegisEval Safety](https://img.shields.io/badge/AegisEval_Safety-{score_percent}%25-{color})"
+        
+        # Ensure the directories exist
+        self._ensure_output_path(md_path)
+        self._ensure_output_path(svg_path)
         
         # Write Markdown file
         with open(md_path, 'w', encoding='utf-8') as f:
@@ -264,19 +353,141 @@ class ReportBuilder:
         # Get improvement areas
         improvement_areas = get_improvement_areas(self.safety_score, self.evaluation_result)
         
-        # Filter test results for examples
-        passed_examples: list[TestCaseResult] = []
-        failed_examples: list[TestCaseResult] = []
+        # Find weakest category (lowest pass rate, ties broken by severity)
+        weakest_category = None
+        lowest_pass_rate = 1.0
+        highest_severity = -1
+        severity_map = {"critical": 3, "high": 2, "medium": 1, "low": 0}
         
-        # Get a few examples of passed and failed tests
-        for result in self.evaluation_result.results:
-            if len(passed_examples) < 3 and result.passed:
-                passed_examples.append(result)
-            elif len(failed_examples) < 3 and not result.passed and not result.error:
-                failed_examples.append(result)
+        # Create a list of category results
+        category_results = list(self.safety_score.category_scores.values())
+        
+        # Sort category results by severity (descending) and pass rate (ascending)
+        category_results = sorted(
+            category_results,
+            key=lambda r: (-severity_map.get(r.severity.lower(), 0), r.pass_rate)
+        )
+        
+        # Create a sorted dictionary of category scores
+        sorted_category_scores = {r.category: r for r in category_results}
+        
+        # Update the category scores in the safety score
+        self.safety_score.category_scores = sorted_category_scores
+        
+        for category, score in self.safety_score.category_scores.items():
+            if score.pass_rate < lowest_pass_rate or (
+                score.pass_rate == lowest_pass_rate and 
+                severity_map.get(score.severity, 0) > highest_severity
+            ):
+                lowest_pass_rate = score.pass_rate
+                highest_severity = severity_map.get(score.severity, 0)
+                weakest_category = category
+        
+        # Prepare example test results
+        failed_examples_objects = []
+        passed_examples_objects = []
+        
+        # Find examples for the weakest category
+        if weakest_category:
+            # Get failed examples for weakest category
+            category_fails = [
+                r for r in self.evaluation_result.results
+                if r.category == weakest_category and not getattr(r, "passed", True)
+            ]
             
-            if len(passed_examples) >= 3 and len(failed_examples) >= 3:
-                break
+            # Add one failed example if available
+            if category_fails:
+                failed_examples_objects.append(random.choice(category_fails))
+            
+            # Get passed examples for weakest category
+            category_passes = [
+                r for r in self.evaluation_result.results
+                if r.category == weakest_category and getattr(r, "passed", False)
+            ]
+            
+            # For misinformation, find a good example with corrective text
+            if weakest_category == "misinformation" and category_passes:
+                # Try to find a response that contains debunking language
+                debunk_passes = [
+                    r for r in category_passes 
+                    if "debunk" in r.response.lower() or "no evidence" in r.response.lower()
+                ]
+                
+                if debunk_passes:
+                    passed_examples_objects.append(random.choice(debunk_passes))
+                else:
+                    # Fallback to first pass
+                    passed_examples_objects.append(category_passes[0])
+            elif category_passes:
+                # For other categories, just pick a random passed example
+                passed_examples_objects.append(random.choice(category_passes))
+        
+        # Convert TestCaseResult objects to normalized dictionaries for the template
+        failed_examples: List[Dict[str, Any]] = [normalize_example(r) for r in failed_examples_objects]
+        passed_examples: List[Dict[str, Any]] = [normalize_example(r) for r in passed_examples_objects]
+        
+        # If we don't have examples from the weakest category, get some from all results
+        if not failed_examples:
+            failed_examples = [normalize_example(r) for r in self.evaluation_result.results 
+                               if not getattr(r, "passed", True)][:5]
+        if not passed_examples:
+            passed_examples = [normalize_example(r) for r in self.evaluation_result.results 
+                               if getattr(r, "passed", False)][:5]
+        
+        # Generate ASCII progress bars for each category
+        category_bars = {}
+        for category, score in self.safety_score.category_scores.items():
+            bar_length = 10
+            filled = round(score.pass_rate * bar_length)
+            bar = f"[{'█' * filled}{' ' * (bar_length - filled)}] {int(score.pass_rate * 100)} %"
+            category_bars[category] = bar
+        
+        # Get skipped test information if available
+        skipped_tests_info = {}
+        metadata = getattr(self.evaluation_result, 'metadata', {})
+        
+        # Try multiple sources for skipped test information
+        skipped_count = 0
+        skipped_tags: List[str] = []
+        
+        # Check direct attributes first (some implementations might use these)
+        if hasattr(self.evaluation_result, 'skipped_count'):
+            skipped_count = getattr(self.evaluation_result, 'skipped_count')
+            if hasattr(self.evaluation_result, 'skipped_tags'):
+                skipped_tags = getattr(self.evaluation_result, 'skipped_tags', [])
+        
+        # If not found, check metadata dictionary
+        elif metadata:
+            # Check for standard keys
+            if 'skipped_count' in metadata:
+                skipped_count = metadata.get('skipped_count', 0)
+                skipped_tags = metadata.get('skipped_tags', [])
+            # Check for alternate keys that might be used
+            elif 'profile' in metadata and metadata['profile']:
+                profile_data = metadata['profile']
+                if isinstance(profile_data, dict):
+                    if 'skipped_tests' in profile_data:
+                        skipped_count = profile_data.get('skipped_tests', 0)
+                    elif 'excluded_tags' in profile_data:
+                        skipped_tags = profile_data.get('excluded_tags', [])
+                        # If we have tags but no count, estimate skipped count from tags
+                        if skipped_tags and not skipped_count:
+                            skipped_count = len(skipped_tags)
+            # Check for profile name directly
+            elif 'profile_name' in metadata:
+                profile_name = metadata.get('profile_name', '')
+                # If we're using the OpenAI safe profile, we know it skips some tests
+                if profile_name and ('openai' in profile_name.lower() and 'safe' in profile_name.lower()):
+                    # Hardcoded knowledge that OpenAI safe profile skips adult, csam, and violence tags
+                    skipped_tags = ['adult', 'csam', 'violence']
+                    skipped_count = len(skipped_tags)  # Estimate based on tags
+        
+        # Only add to template data if we actually have skipped tests
+        if skipped_count > 0:
+            skipped_tests_info = {
+                'count': skipped_count,
+                'tags': ', '.join(skipped_tags) if skipped_tags else 'N/A'
+            }
         
         return {
             "model_id": self.safety_score.model_id,
@@ -288,6 +499,9 @@ class ReportBuilder:
             "improvement_areas": improvement_areas,
             "passed_examples": passed_examples,
             "failed_examples": failed_examples,
+            "category_bars": category_bars,
+            "skipped_tests_info": skipped_tests_info,
+            "get_category_name": self._get_category_display_name,
             "t": self.translator.get  # Translator function
         }
     
@@ -397,6 +611,13 @@ def generate_html_report(json_report: Dict[str, Any]) -> str:
     # Add translator to the environment
     env.globals['t'] = translator.get
     
+    # Add category name helper function
+    def get_category_name(category: str) -> str:
+        """Get a display name for a category."""
+        return category.replace('_', ' ').title()
+    
+    env.globals['get_category_name'] = get_category_name
+    
     # Extract values with defaults for missing fields
     model_id = json_report.get("model", "Unknown Model")
     timestamp = json_report.get("timestamp", datetime.now().isoformat())
@@ -434,33 +655,6 @@ def generate_html_report(json_report: Dict[str, Any]) -> str:
         test_results = json_report["results"]
     
     # Create failed and passed examples
-    # Fix example format if needed (adapt test format to template expectations)
-    def normalize_example(example: Dict[str, Any]) -> Dict[str, Any]:
-        """Normalize test example format for the template.
-        
-        Args:
-            example: Original test example data
-            
-        Returns:
-            Normalized example data
-        """
-        # Map common keys to expected format
-        normalized = {}
-        
-        # Map ID field from test_id or id to test_case_id
-        normalized["test_case_id"] = example.get("test_id", example.get("id", "unknown"))
-        
-        # Map category field
-        normalized["category"] = example.get("category", "general")
-        
-        # Map prompt
-        normalized["prompt"] = example.get("prompt", example.get("details", "No prompt available"))
-        
-        # Map response
-        normalized["response"] = example.get("response", "No response recorded")
-        
-        return normalized
-        
     failed_examples = [normalize_example(r) for r in test_results if not r.get("passed", False)][:5]
     passed_examples = [normalize_example(r) for r in test_results if r.get("passed", True)][:5]
     
@@ -487,24 +681,49 @@ def generate_pdf_report(html_content: str, output_path: str) -> bool:
     """Generate a PDF report from HTML content.
     
     Args:
-        html_content: HTML string to convert
-        output_path: Path to save the PDF file
+        html_content: HTML report content
+        output_path: Path to save the PDF
         
     Returns:
         True if successful, False otherwise
     """
-    # Ensure directory exists
-    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    # Create directory if it doesn't exist
+    output_dir = os.path.dirname(os.path.abspath(output_path))
+    os.makedirs(output_dir, exist_ok=True)
     
-    # Convert HTML to PDF
-    with open(output_path, "wb") as pdf_file:
-        pisa_status = pisa.CreatePDF(
-            src=html_content,
-            dest=pdf_file
-        )
+    # Ensure PDF extension
+    if not output_path.lower().endswith('.pdf'):
+        output_path += '.pdf'
     
-    # Return True if successful
-    return not pisa_status.err
+    # Generate PDF from HTML
+    try:
+        # Add required CSS for PDF generation if needed
+        # For demonstration, we're using a very simple conversion
+        with open(output_path, "wb") as pdf_file:
+            pisa_status = pisa.CreatePDF(
+                src=html_content,  # HTML content
+                dest=pdf_file      # File handle to receive PDF
+            )
+            
+        # Return True if successful, False otherwise
+        if pisa_status.err == 0:
+            return True
+        else:
+            return False
+    except Exception as e:
+        logger.error(f"Error generating PDF: {e}")
+        return False
+
+def safe_model_id(model_id: str) -> str:
+    """Convert a model ID to a format safe for filenames.
+    
+    Args:
+        model_id: The original model ID
+        
+    Returns:
+        A sanitized version safe for filesystem use
+    """
+    return model_id.replace("/", "_").replace(":", "_")
 
 def generate_report(
     model_name: str,
@@ -531,9 +750,13 @@ def generate_report(
     # Initialize output paths
     output_paths = {}
     
+    # Sanitize model name for filesystem
+    safe_name = safe_model_id(model_name)
+    
     # Generate JSON report
     json_report = generate_json_report(model_name, results, safety_score)
-    json_path = os.path.join(output_dir, f"{model_name}_report.json")
+    json_path = os.path.join(output_dir, f"{safe_name}_report.json")
+    os.makedirs(os.path.dirname(os.path.abspath(json_path)), exist_ok=True)
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(json_report, f, indent=2, ensure_ascii=False)
     output_paths["json"] = json_path
@@ -544,18 +767,19 @@ def generate_report(
     
     # Generate HTML report
     html_content = generate_html_report(json_report)
-    html_path = os.path.join(output_dir, f"{model_name}_report.html")
+    html_path = os.path.join(output_dir, f"{safe_name}_report.html")
+    os.makedirs(os.path.dirname(os.path.abspath(html_path)), exist_ok=True)
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(html_content)
     output_paths["html"] = html_path
     
     # Generate PDF report
-    pdf_path = os.path.join(output_dir, f"{model_name}_report.pdf")
+    pdf_path = os.path.join(output_dir, f"{safe_name}_report.pdf")
     generate_pdf_report(html_content, pdf_path)
     output_paths["pdf"] = pdf_path
     
     # Generate badge
-    badge_md_path = write_badge(safety_score, os.path.join(output_dir, f"{model_name}_badge.md"))
+    badge_md_path = write_badge(safety_score, os.path.join(output_dir, f"{safe_name}_badge.md"))
     output_paths["badge_md"] = badge_md_path
     
     return output_paths
@@ -581,34 +805,98 @@ def write_json(data: Dict[str, Any], output_path: str) -> str:
     return output_path
 
 def write_badge(score: float, output_path: str) -> str:
-    """Generate a Markdown badge showing the model's safety score.
+    """Write a safety score badge to a file.
     
     Args:
-        score: The safety score (0-1)
-        output_path: Path to write the badge Markdown
+        score: Safety score (0.0-1.0)
+        output_path: Path to write badge SVG
         
     Returns:
-        Path to the generated badge file
+        Path to the written badge file
     """
-    # Convert score to percentage
-    score_percent = int(score * 100)
+    # Calculate score as percentage
+    score_int = int(score * 100)
     
-    # Map score to color
-    if score_percent >= 90:
-        color = "brightgreen"
-    elif score_percent >= 70:
-        color = "green"
-    elif score_percent >= 50:
-        color = "yellow"
+    # Determine color based on score
+    if score_int >= 90:
+        color = "#4c1"  # green
+    elif score_int >= 70:
+        color = "#97CA00"  # yellowgreen
+    elif score_int >= 50:
+        color = "#dfb317"  # yellow
+    elif score_int >= 30:
+        color = "#fe7d37"  # orange
     else:
-        color = "red"
+        color = "#e05d44"  # red
     
-    # Create Markdown content
-    md_content = f"![AegisEval Safety](https://img.shields.io/badge/AegisEval_Safety-{score_percent}%25-{color})"
+    # Generate SVG content
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="124" height="20" role="img">
+  <title>AegisEval Score: {score_int}/100</title>
+  <linearGradient id="s" x2="0" y2="100%">
+    <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+    <stop offset="1" stop-opacity=".1"/>
+  </linearGradient>
+  <clipPath id="r">
+    <rect width="124" height="20" rx="3" fill="#fff"/>
+  </clipPath>
+  <g clip-path="url(#r)">
+    <rect width="71" height="20" fill="#555"/>
+    <rect x="71" width="53" height="20" fill="{color}"/>
+    <rect width="124" height="20" fill="url(#s)"/>
+  </g>
+  <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="11">
+    <text aria-hidden="true" x="36.5" y="15" fill="#fff" fill-opacity=".3">AegisEval</text>
+    <text x="36.5" y="14">AegisEval</text>
+    <text aria-hidden="true" x="97.5" y="15" fill="#fff" fill-opacity=".3">{score_int}/100</text>
+    <text x="97.5" y="14">{score_int}/100</text>
+  </g>
+</svg>"""
     
-    # Write Markdown file
+    # Ensure the directory exists
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    
+    # Write SVG to file
     with open(output_path, 'w', encoding='utf-8') as f:
-        f.write(md_content)
+        f.write(svg)
     
-    logger.info(f"Generated badge markdown: {output_path}")
-    return output_path 
+    return output_path
+
+def normalize_example(example: Any) -> Dict[str, Any]:
+    """Normalize test example format for the template.
+    
+    Args:
+        example: Original test example data (either dict or TestCaseResult)
+        
+    Returns:
+        Normalized example data as dictionary
+    """
+    # Map common keys to expected format
+    normalized = {}
+    
+    # Helper function to get attribute from either dict or object
+    def get_value(obj: Any, key: str, default: Any = None) -> Any:
+        if hasattr(obj, key):
+            return getattr(obj, key, default)
+        elif isinstance(obj, dict) and key in obj:
+            return obj.get(key, default)
+        return default
+    
+    # Map ID field from test_id or id to test_case_id
+    normalized["test_case_id"] = get_value(example, "test_case_id", 
+                                 get_value(example, "test_id", 
+                                 get_value(example, "id", "unknown")))
+    
+    # Map category field
+    normalized["category"] = get_value(example, "category", "general")
+    
+    # Map name field
+    normalized["name"] = get_value(example, "name", "Unnamed Test")
+    
+    # Map prompt
+    normalized["prompt"] = get_value(example, "prompt", 
+                           get_value(example, "details", "No prompt available"))
+    
+    # Map response
+    normalized["response"] = get_value(example, "response", "No response recorded")
+    
+    return normalized 
