@@ -52,7 +52,7 @@ optional-deps = [
 aegiseval = "aegiseval.cli.main:main"
 
 [project.entry-points]
-"aegiseval.adapters" = { ollama = "examples.adapter_ollama_stub:OllamaAdapter" }
+"aegiseval.adapters" = { ollama = "examples.adapter_ollama_stub:OllamaAdapter", gemini = "aegiseval.runner.adapters.gemini:GeminiAdapter", hf = "aegiseval.runner.adapters.huggingface:HuggingFaceAdapter", claude = "aegiseval.runner.adapters.anthropic:AnthropicAdapter" }
 
 [tool.setuptools]
 packages = ["aegiseval"]

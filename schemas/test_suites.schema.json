@@ -21,7 +21,7 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["csam", "extremist", "copyright_long", "jailbreak", "self_harm", "bias", "misinfo", "privacy", "hallucination"]
+            "enum": ["csam", "extremist", "copyright_long", "jailbreak", "self_harm", "bias", "misinfo", "privacy", "hallucination", "accuracy", "transparency"]
           },
           "description": "List of tags categorizing the test suite"
         }
