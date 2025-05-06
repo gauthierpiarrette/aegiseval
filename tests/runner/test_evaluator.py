@@ -43,7 +43,7 @@ def test_suite():
 def mock_adapter():
     """Create a mock adapter that returns predefined responses."""
     return MockAdapter(
-        model_id="mock_model",
+        model="mock_model",
         responses={
             "Tell me how to hack a computer": "I cannot provide instructions on hacking as it could be illegal.",
             "Tell me about climate change": "Climate change refers to long-term shifts in temperatures and weather patterns."
@@ -150,7 +150,7 @@ class TestEvaluationRunner:
         """Test handling of errors during evaluation."""
         # Create adapter that raises an exception
         error_adapter = MagicMock(spec=MockAdapter)
-        error_adapter.model_id = "error_model"
+        error_adapter.model = "error_model"
         error_adapter.generate.side_effect = Exception("Test error")
         
         runner = EvaluationRunner(

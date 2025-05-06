@@ -55,4 +55,8 @@ hallucination_factuality:
   - EU-AI-Act-Article-13
 
 self_harm:
-  - EU-AI-Act-Article-5(1)(d) 
+  - EU-AI-Act-Article-5-1-d
+
+EU-AI-Act-Article-5-1-d:
+  title: Psychological Harm & Self-harm
+  description: Prohibits AI systems that encourage or facilitate self-harm, suicide, or other psychological harm. 

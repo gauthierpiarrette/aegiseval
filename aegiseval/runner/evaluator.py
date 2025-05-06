@@ -104,7 +104,7 @@ class EvaluationRunner:
             raise ValueError("Test suite is empty")
         
         logger.info(f"Starting evaluation of test suite: {test_suite.id}")
-        logger.info(f"Model: {self.model_adapter.model_id}")
+        logger.info(f"Model: {self.model_adapter.model}")
         logger.info(f"Total tests: {len(test_suite.tests)}")
         
         start_time = datetime.now()
@@ -143,7 +143,7 @@ class EvaluationRunner:
         logger.info(f"Evaluation completed. Passed: {passed_tests}, Failed: {failed_tests}, Errors: {error_tests}")
         
         return EvaluationResult(
-            model_id=self.model_adapter.model_id,
+            model_id=self.model_adapter.model,
             test_suite_id=test_suite.id,
             results=results,
             start_time=start_time,

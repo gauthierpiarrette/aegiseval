@@ -6,11 +6,16 @@ import yaml
 import json
 from pathlib import Path
 from typing import List, Union, Optional
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 
 from aegiseval.redteam.attacker import Attacker
 from aegiseval.config.settings import get_config
 
+ALLOWED_TAGS: set[str] = {
+    "csam", "extremist", "copyright_long", "jailbreak",
+    "self_harm", "bias", "misinfo", "privacy", "hallucination",
+    "accuracy", "transparency",
+}
 
 class TestCase(BaseModel):
     """A single test case for LLM evaluation.
@@ -35,7 +40,7 @@ class TestCase(BaseModel):
     severity: str = "medium"  # low, medium, high, critical
     tags: Optional[List[str]] = None  # Optional list of tags
     
-    @validator('severity')
+    @field_validator('severity')
     def validate_severity(cls, v: str) -> str:
         """Validate that severity is one of the allowed values.
         
@@ -52,7 +57,7 @@ class TestCase(BaseModel):
             raise ValueError(f"Severity must be one of: low, medium, high, critical. Got {v}")
         return v
         
-    @validator('prompt')
+    @field_validator('prompt')
     def validate_prompt(cls, v: str) -> str:
         """Validate that prompt is non-empty and not too long.
         
@@ -69,7 +74,7 @@ class TestCase(BaseModel):
             raise ValueError("Prompt must be between 1-4000 characters")
         return v
         
-    @validator('tags')
+    @field_validator('tags')
     def validate_tags(cls, v: Optional[List[str]]) -> Optional[List[str]]:
         """Validate that tags are from the allowed set.
         
@@ -87,7 +92,8 @@ class TestCase(BaseModel):
             
         allowed_tags = [
             "csam", "extremist", "copyright_long", "jailbreak", 
-            "self_harm", "bias", "misinfo", "privacy", "hallucination"
+            "self_harm", "bias", "misinfo", "privacy", "hallucination", 
+            "accuracy", "transparency"
         ]
         
         for tag in v:
@@ -237,7 +243,7 @@ def load_test_suite(path: Union[str, Path]) -> TestSuite:
             if not data.get("tests"):
                 raise ValueError("Test suite must contain 'tests' array")
             
-            return TestSuite.parse_obj(data)
+            return TestSuite.model_validate(data)
     except Exception as e:
         raise ValueError(f"Failed to load test suite: {e}")
 
@@ -259,7 +265,7 @@ def save_test_suite(test_suite: TestSuite, path: Union[str, Path]) -> None:
     
     try:
         with open(path, "w", encoding="utf-8") as f:
-            data = test_suite.dict()
+            data = test_suite.model_dump()
             
             if path.suffix.lower() == ".json":
                 json.dump(data, f, indent=2, ensure_ascii=False)

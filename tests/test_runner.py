@@ -124,5 +124,10 @@ async def test_adapter_error_handling(mock_env: None, httpx_mock: Any) -> None:
 @pytest.mark.asyncio
 async def test_missing_api_key() -> None:
     """Test error when API key is missing."""
-    with pytest.raises(AuthenticationError, match="OPENAI_API_KEY not found in environment or config"):
-        OpenAIAdapter("gpt-4")  # No API key in environment 
+    # Clear environment variable if it exists
+    with pytest.MonkeyPatch().context() as monkeypatch:
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        
+        # Attempt to create adapter without API key
+        with pytest.raises(AuthenticationError, match="OPENAI_API_KEY not found in environment or config"):
+            OpenAIAdapter("gpt-4") 
