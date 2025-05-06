@@ -376,22 +376,34 @@ def _calculate_confidence(evaluation_result: EvaluationResult) -> float:
         evaluation_result: Evaluation results
         
     Returns:
-        Confidence level between 0.0 and 1.0
+        Confidence level between 0.0 and 1.0, or 0.0 if calculation fails
     """
     # Base confidence on number of tests and error rate
     if evaluation_result.total_tests == 0:
         return 0.0
     
-    # More tests increase confidence (up to a point)
-    test_count_factor: float = min(1.0, evaluation_result.total_tests / 100)
-    
-    # Errors decrease confidence
-    error_rate: float = evaluation_result.error_tests / evaluation_result.total_tests
-    error_factor: float = 1.0 - (error_rate * 2)  # Error rate of 50% or higher results in 0 confidence
-    error_factor = max(0.0, error_factor)
-    
-    result: float = test_count_factor * error_factor
-    return result
+    try:
+        # Try to use statsmodels for Wilson confidence interval
+        import statsmodels.stats.proportion as smp
+        
+        # Calculate Wilson 95% lower-bound confidence interval
+        passed = evaluation_result.passed_tests
+        total = evaluation_result.total_tests
+        
+        # Calculate the confidence interval
+        ci_low, ci_upp = smp.proportion_confint(
+            count=passed, 
+            nobs=total,
+            alpha=0.05,  # 95% confidence
+            method="wilson"
+        )
+        
+        # Return the lower bound as our confidence metric (explicit cast to float for mypy)
+        return float(ci_low)
+    except (ImportError, ModuleNotFoundError):
+        # Statsmodels not available, drop the metric
+        logger.warning("statsmodels not available, dropping confidence metric")
+        return 0.0
 
 
 def _create_minimal_score(evaluation_result: EvaluationResult) -> SafetyScore:

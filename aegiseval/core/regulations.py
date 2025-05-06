@@ -43,6 +43,13 @@ def get_regulation_definitions() -> Dict[str, Dict[str, Any]]:
             "importance": "high",
             "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A52021PC0206"
         },
+        "EU-AI-Act-Article-9": {
+            "title": "Risk Management System",
+            "description": "Requirements for establishing and maintaining a risk management system for high-risk AI systems",
+            "article": "9",
+            "importance": "high",
+            "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A52021PC0206"
+        },
         "EU-AI-Act-Article-10": {
             "title": "Data and Data Governance",
             "description": "Requirements for data used to train, validate, and test high-risk AI systems",
@@ -69,6 +76,28 @@ def get_regulation_definitions() -> Dict[str, Dict[str, Any]]:
             "description": "Requirements for the accuracy, robustness, and cybersecurity of high-risk AI systems",
             "article": "15",
             "importance": "high",
+            "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A52021PC0206"
+        },
+        "EU-AI-Act-Recital-60": {
+            "title": "Intellectual Property Rights",
+            "description": "Protection of intellectual property rights in the context of AI systems",
+            "article": "Recital-60",
+            "importance": "medium",
+            "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A52021PC0206"
+        },
+        "EU-AI-Act-Article-5-1-d": {
+            "title": "Psychological Harm & Self-harm",
+            "description": "Prohibits AI systems that encourage or facilitate self-harm, suicide, or other psychological harm.",
+            "article": "5-1-d",
+            "importance": "critical",
+            "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A52021PC0206"
+        },
+        # Add alias with parentheses for compatibility with test suites
+        "EU-AI-Act-Article-5(1)(d)": {
+            "title": "Psychological Harm & Self-harm",
+            "description": "Prohibits AI systems that encourage or facilitate self-harm, suicide, or other psychological harm.",
+            "article": "5-1-d",
+            "importance": "critical",
             "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A52021PC0206"
         }
     }
